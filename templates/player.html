@@ -3,23 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Xem Video</title>
+    <title>Đang phát Video</title>
     <link rel="stylesheet" href="/static/css/player.css">
 </head>
 <body>
     <div class="player-container">
+        <!-- Action Bar nhỏ gọn góc trên -->
         <div class="action-bar">
-            <a href="{{ video_url }}" download="video.mp4" class="btn-action">
+            <a href="{{ video_url }}" download="video.mp4" class="btn-action" title="Tải video">
                 ⬇ Tải MP4
             </a>
-            <a href="{{ original_url }}" target="_blank" class="btn-action">
+            <a href="{{ original_url }}" target="_blank" rel="noopener noreferrer" class="btn-action" title="Xem bài gốc">
                 🔗 Nguồn
             </a>
         </div>
-        <video controls autoplay playsinline loop>
+
+        <!-- Video Player tự động phát, căn giữa 100% -->
+        <video id="mainVideo" controls autoplay playsinline loop muted>
             <source src="{{ video_url }}" type="video/mp4">
-            Trình duyệt không hỗ trợ thẻ video này.
+            Trình duyệt của bạn không hỗ trợ phát thẻ video HTML5.
         </video>
     </div>
+
+    <script>
+        // Tự động phát khi tải trang (unmute nếu trình duyệt cho phép)
+        const video = document.getElementById('mainVideo');
+        video.play().then(() => {
+            // Cố gắng bật tiếng sau khi đã auto-play
+            video.muted = false;
+        }).catch(() => {
+            // Nếu trình duyệt (đặc biệt là Messenger / Safari) chặn autoplay có tiếng,
+            // giữ muted và bấm chạm vào màn hình sẽ bật tiếng
+            document.body.addEventListener('click', () => {
+                video.muted = false;
+                video.play();
+            }, { once: true });
+        });
+    </script>
 </body>
 </html>
