@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lỗi Tải Video</title>
+    <style>
+        body {
+            background: #0d0f15;
+            color: #fff;
+            font-family: -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+            padding: 20px;
+        }
+        .box { max-width: 400px; }
+        a { color: #6366f1; text-decoration: none; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h3 style="color: #f87171; margin-bottom: 10px;">❌ Không thể tải video này</h3>
+        <p style="color: #9ca3af; font-size: 14px; margin-bottom: 20px;">Link có thể ở chế độ riêng tư, đã bị xóa hoặc nền tảng chặn truy cập.</p>
+        <a href="{{ original_url }}" target="_blank">Mở link gốc ↗</a>
+    </div>
+</body>
+</html>

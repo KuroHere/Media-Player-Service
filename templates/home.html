@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Direct Player</title>
+    <link rel="stylesheet" href="/static/css/home.css">
+</head>
+<body>
+    <div class="card">
+        <div class="logo">🎬</div>
+        <h1>Media Direct Player</h1>
+        <p>Xem video TikTok, X (Twitter), Facebook Reels trực tiếp không quảng cáo</p>
+        <div class="input-box">
+            <input type="text" id="targetUrl" placeholder="Dán link video vào đây...">
+            <button onclick="watch()">Mở Video</button>
+        </div>
+        <div class="status-badge">
+            <span class="dot"></span> Server 24/7 Online
+        </div>
+    </div>
+    <script>
+        function watch() {
+            const u = document.getElementById('targetUrl').value.trim();
+            if (u) window.location.href = '/?url=' + encodeURIComponent(u);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Xem Video</title>
+    <link rel="stylesheet" href="/static/css/player.css">
+</head>
+<body>
+    <div class="player-container">
+        <div class="action-bar">
+            <a href="{{ video_url }}" download="video.mp4" class="btn-action">
+                ⬇ Tải MP4
+            </a>
+            <a href="{{ original_url }}" target="_blank" class="btn-action">
+                🔗 Nguồn
+            </a>
+        </div>
+        <video controls autoplay playsinline loop>
+            <source src="{{ video_url }}" type="video/mp4">
+            Trình duyệt không hỗ trợ thẻ video này.
+        </video>
+    </div>
+</body>
+</html>
