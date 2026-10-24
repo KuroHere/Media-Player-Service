@@ -8,7 +8,8 @@ import secrets
 import string
 import re
 
-app = FastAPI()
+# Tắt hoàn toàn docs và openapi_url để bảo mật thông tin API
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -69,20 +70,18 @@ def extract_media(url: str):
         except Exception as e:
             print("TikWM error:", e)
 
-    # 3. Xử lý X (Twitter): Dùng Syndication API nội bộ (cực nhanh, không bị chặn CORS, lấy MP4 trực tiếp)
+    # 3. Xử lý X (Twitter): Dùng Syndication API nội bộ
     if "x.com" in url or "twitter.com" in url:
         match_id = re.search(r"/status/(\d+)", url)
         if match_id:
             tweet_id = match_id.group(1)
             try:
-                # Query endpoint Syndication của chính Twitter kèm token
                 syn_url = f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=5"
                 headers = {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                 }
                 syn_res = requests.get(syn_url, headers=headers, timeout=8).json()
                 
-                # Trích xuất video nếu có
                 video_obj = syn_res.get("video", {})
                 variants = video_obj.get("variants", [])
                 
@@ -92,13 +91,11 @@ def extract_media(url: str):
                         mp4_list.append(item["src"])
                 
                 if mp4_list:
-                    # Lấy video có chất lượng cao nhất (thường nằm ở cuối danh sách)
                     return {
                         "type": "video",
                         "video_url": mp4_list[-1]
                     }
 
-                # Nếu là bài đăng hình ảnh trên Twitter
                 photos = syn_res.get("photos", [])
                 if photos:
                     img_urls = [p.get("url") for p in photos if p.get("url")]
