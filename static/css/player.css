@@ -81,7 +81,7 @@ video {
 
 .slide-img {
     max-width: 92vw !important;
-    max-height: 84vh !important;
+    max-height: 82vh !important;
     width: auto !important;
     height: auto !important;
     object-fit: contain !important;
@@ -123,20 +123,88 @@ video {
 .prev-btn { left: 16px; }
 .next-btn { right: 16px; }
 
-.indicator {
+/* Bottom Control Deck: Indicator + Audio Player */
+.bottom-deck {
     position: fixed;
-    bottom: 24px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 999;
+}
+
+.indicator {
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: #fff;
-    padding: 8px 18px;
+    padding: 8px 16px;
     border-radius: 20px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 1px;
-    z-index: 999;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.audio-control-bar {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 14px;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.audio-btn {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    padding: 2px;
+    transition: transform 0.1s;
+}
+
+.audio-btn:active {
+    transform: scale(0.88);
+}
+
+.volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 75px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    outline: none;
+    cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #6366f1;
+    cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #6366f1;
+    cursor: pointer;
+    border: none;
 }

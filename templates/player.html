@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{{ "Xem Ảnh TikTok" if media_type == "images" else "Đang phát Video" }}</title>
-    <!-- Cache buster query string v=2 để không bị cache css cũ -->
-    <link rel="stylesheet" href="/static/css/player.css?v=2">
+    <!-- Cache buster query string v=3 -->
+    <link rel="stylesheet" href="/static/css/player.css?v=3">
 </head>
 <body>
     <div class="player-container">
@@ -44,16 +44,28 @@
         </script>
 
         {% elif media_type == "images" %}
-        <!-- Trình lướt ảnh TikTok (Slideshow + Nhạc nền) -->
+        <!-- Trình lướt ảnh TikTok (Slideshow) -->
         <div class="gallery-container">
             <button type="button" class="nav-btn prev-btn" id="prevBtn">&#10094;</button>
             <img id="activeSlide" class="slide-img" src="{{ images[0] }}" alt="TikTok Photo">
             <button type="button" class="nav-btn next-btn" id="nextBtn">&#10095;</button>
-            <div id="slideIndicator" class="indicator">1 / {{ images|length }}</div>
+
+            <!-- Bottom Deck: Bộ đếm số ảnh + Trình điều khiển Âm thanh -->
+            <div class="bottom-deck">
+                <div id="slideIndicator" class="indicator">1 / {{ images|length }}</div>
+
+                {% if music_url %}
+                <div class="audio-control-bar" id="audioBar">
+                    <button type="button" class="audio-btn" id="playPauseBtn" title="Phát / Tạm dừng">⏸</button>
+                    <button type="button" class="audio-btn" id="muteBtn" title="Tắt / Bật tiếng">🔊</button>
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1" title="Chỉnh âm lượng">
+                </div>
+                {% endif %}
+            </div>
         </div>
 
         {% if music_url %}
-        <!-- Nhạc nền kèm theo slideshow TikTok -->
+        <!-- Thẻ âm thanh chạy ngầm độc lập -->
         <audio id="bgMusic" autoplay loop>
             <source src="{{ music_url }}" type="audio/mp4">
         </audio>
@@ -65,7 +77,6 @@
             const imgElem = document.getElementById('activeSlide');
             const indElem = document.getElementById('slideIndicator');
             const dlBtn = document.getElementById('downloadImgBtn');
-            const bgMusic = document.getElementById('bgMusic');
             const prevBtn = document.getElementById('prevBtn');
             const nextBtn = document.getElementById('nextBtn');
 
@@ -73,7 +84,6 @@
                 imgElem.style.opacity = '0.2';
                 const nextSrc = images[currentIndex];
                 
-                // Preload ảnh tiếp theo để chuyển mượt không bị nháy
                 const tempImg = new Image();
                 tempImg.onload = () => {
                     imgElem.src = nextSrc;
@@ -94,7 +104,6 @@
                 updateSlide();
             }
 
-            // Gắn sự kiện click nút bấm
             nextBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 nextSlide();
@@ -105,7 +114,7 @@
                 prevSlide();
             });
 
-            // Bấm vào nửa phải màn hình -> Next, nửa trái -> Prev
+            // Bấm nửa phải ảnh -> Next, nửa trái -> Prev
             imgElem.addEventListener('click', (e) => {
                 const rect = imgElem.getBoundingClientRect();
                 const clickX = e.clientX - rect.left;
@@ -116,13 +125,13 @@
                 }
             });
 
-            // Hỗ trợ phím mũi tên bàn phím
+            // Phím mũi tên
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowRight' || e.key === 'Space') nextSlide();
                 if (e.key === 'ArrowLeft') prevSlide();
             });
 
-            // Vuốt cảm ứng điện thoại (Swipe Touch)
+            // Vuốt cảm ứng điện thoại
             let touchStartX = 0;
             let touchStartY = 0;
 
@@ -137,20 +146,66 @@
                 const diffX = touchStartX - touchEndX;
                 const diffY = touchStartY - touchEndY;
 
-                // Nếu là vuốt ngang (tránh nhầm với cuộn dọc)
                 if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
                     if (diffX > 0) nextSlide();
                     else prevSlide();
                 }
             }, { passive: true });
 
-            // Bật nhạc nền
+            // ----------------- ĐIỀU KHIỂN AUDIO RIÊNG BIỆT -----------------
+            const bgMusic = document.getElementById('bgMusic');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const muteBtn = document.getElementById('muteBtn');
+            const volumeSlider = document.getElementById('volumeSlider');
+
             if (bgMusic) {
+                // Tự động phát khi tải
                 bgMusic.play().catch(() => {
                     document.body.addEventListener('click', () => {
                         bgMusic.play();
                     }, { once: true });
                 });
+
+                // Nút Phát / Tạm dừng
+                if (playPauseBtn) {
+                    playPauseBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (bgMusic.paused) {
+                            bgMusic.play();
+                            playPauseBtn.textContent = '⏸';
+                        } else {
+                            bgMusic.pause();
+                            playPauseBtn.textContent = '▶';
+                        }
+                    });
+                }
+
+                // Nút Tắt / Bật tiếng
+                if (muteBtn) {
+                    muteBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        bgMusic.muted = !bgMusic.muted;
+                        muteBtn.textContent = bgMusic.muted ? '🔇' : '🔊';
+                    });
+                }
+
+                // Thanh trượt chỉnh âm lượng (0% -> 100%)
+                if (volumeSlider) {
+                    volumeSlider.addEventListener('input', (e) => {
+                        e.stopPropagation();
+                        bgMusic.volume = parseFloat(e.target.value);
+                        if (bgMusic.volume === 0) {
+                            muteBtn.textContent = '🔇';
+                        } else {
+                            bgMusic.muted = false;
+                            muteBtn.textContent = '🔊';
+                        }
+                    });
+
+                    // Ngăn chặn sự kiện click lan ra ngoài gây chuyển ảnh
+                    volumeSlider.addEventListener('click', (e) => e.stopPropagation());
+                    volumeSlider.addEventListener('touchstart', (e) => e.stopPropagation());
+                }
             }
         </script>
         {% endif %}
