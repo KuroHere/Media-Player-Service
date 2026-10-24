@@ -68,36 +68,38 @@ login({ appState }, {
     listenEvents: true,
     selfListen: false,
     autoMarkDelivery: false,
-    autoMarkRead: false
+    autoMarkRead: false,
+    // Bật bắt sự kiện đồng bộ để hỗ trợ nhận tin nhắn trực tiếp
+    updatePresence: true
 }, (err, api) => {
     if (err) {
         console.error("❌ Đăng nhập bot thất bại:", err.error || err);
         return;
     }
 
-    // Lấy bot ID (UID của tài khoản clone)
     const botID = api.getCurrentUserID();
-    console.log(`✅ Bot Messenger đã online (UID: ${botID})! Sẵn sàng nhận tin nhắn từ cả Nhóm & Chat Cá Nhân.`);
+    console.log(`✅ Bot Messenger đã online (UID: ${botID})!`);
 
     api.listenMqtt(async (err, event) => {
         if (err) return;
         
-        // Hỗ trợ cả message thông thường và message_reply
-        if (event.type !== 'message' && event.type !== 'message_reply') return;
+        // Bắt các loại event tin nhắn (kể cả message_reply hoặc unsend)
+        if (!event || (event.type !== 'message' && event.type !== 'message_reply')) return;
 
-        // Bỏ qua tin nhắn do chính bot gửi để tránh lặp vô tận
+        // Bỏ qua tin nhắn do bot tự gửi
         if (event.senderID === botID) return;
 
         const messageBody = event.body || "";
-        
-        // Regex bắt link TikTok (video/photo/vt/short), X/Twitter, Reels, Instagram
+        if (!messageBody) return;
+
+        // Regex bắt link media
         const urlRegex = /https?:\/\/(www\.)?(tiktok\.com\/(@[\w.-]+\/(video|photo)\/\d+|t\/\w+|vt\.tiktok\.com\/\w+)|x\.com\/\w+\/status\/\d+|twitter\.com\/\w+\/status\/\d+|facebook\.com\/reel\/\d+|instagram\.com\/(reel|p)\/[\w.-]+)[^\s]*/i;
         const match = messageBody.match(urlRegex);
 
         if (match) {
             const originalUrl = match[0];
-            const isGroup = event.isGroup ? "Nhóm" : "Chat Cá Nhân";
-            console.log(`[+] Nhận link từ [${isGroup}] ${event.threadID}: ${originalUrl}`);
+            const chatType = event.isGroup ? "Group" : "Direct 1-1";
+            console.log(`[+] Nhận link từ [${chatType}] ${event.threadID}: ${originalUrl}`);
 
             try {
                 let directLink = "";
@@ -116,7 +118,6 @@ login({ appState }, {
 
                 const replyMessage = `🎬 Xem trực tiếp:\n👉 ${directLink}`;
 
-                // Gửi tin nhắn trả lời (event.threadID tự động là ID cá nhân nếu chat 1-1, hoặc ID nhóm nếu là group)
                 api.sendMessage(replyMessage, event.threadID, (sendErr) => {
                     if (sendErr) {
                         console.error("Lỗi gửi tin nhắn:", sendErr);
