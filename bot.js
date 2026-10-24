@@ -1,6 +1,41 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+
+// Khắc phục xung đột giữa axios-cookiejar-support và proxy agent trong @dongdev/fca-unofficial
+try {
+    const acs = require('axios-cookiejar-support');
+    const { HttpCookieAgent, HttpsCookieAgent, createCookieAgent } = require('http-cookie-agent/http');
+    const HpaModule = require('https-proxy-agent');
+    const HpaConstructor = HpaModule.HttpsProxyAgent || HpaModule;
+    const CookieProxyAgent = createCookieAgent(HpaConstructor);
+
+    acs.wrapper = function (axiosInstance) {
+        axiosInstance.interceptors.request.use((config) => {
+            if (!config.jar) return config;
+
+            const proxyTarget = config.httpsAgent?.proxy?.href || 
+                                config.httpAgent?.proxy?.href || 
+                                (typeof config.httpsAgent === 'string' ? config.httpsAgent : null) || 
+                                (process.env.PROXY_URL ? process.env.PROXY_URL.trim() : null);
+
+            if (proxyTarget) {
+                const agent = new CookieProxyAgent(proxyTarget, { cookies: { jar: config.jar } });
+                agent.protocol = 'https:';
+                config.httpAgent = agent;
+                config.httpsAgent = agent;
+            } else {
+                config.httpAgent = new HttpCookieAgent({ cookies: { jar: config.jar } });
+                config.httpsAgent = new HttpsCookieAgent({ cookies: { jar: config.jar } });
+            }
+            return config;
+        });
+        return axiosInstance;
+    };
+} catch (e) {
+    console.warn("⚠️ Không thể patch axios-cookiejar-support:", e.message);
+}
+
 const login = require('@dongdev/fca-unofficial');
 
 const COOKIE_PATH = path.join(__dirname, 'appstate.json');
@@ -65,11 +100,9 @@ function startBot() {
         forceLogin: true,
         listenEvents: true,
         selfListen: false,
-        autoMarkDelivery: false,
         autoMarkRead: false,
         updatePresence: true,
-        autoReconnect: true,
-        autoLogin: false
+        autoReconnect: true
     };
 
     if (process.env.PROXY_URL) {
