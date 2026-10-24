@@ -75,19 +75,29 @@ login({ appState }, {
         return;
     }
 
-    console.log("✅ Bot Messenger đã online và đang lắng nghe tin nhắn!");
+    // Lấy bot ID (UID của tài khoản clone)
+    const botID = api.getCurrentUserID();
+    console.log(`✅ Bot Messenger đã online (UID: ${botID})! Sẵn sàng nhận tin nhắn từ cả Nhóm & Chat Cá Nhân.`);
 
     api.listenMqtt(async (err, event) => {
-        if (err || event.type !== 'message') return;
+        if (err) return;
+        
+        // Hỗ trợ cả message thông thường và message_reply
+        if (event.type !== 'message' && event.type !== 'message_reply') return;
+
+        // Bỏ qua tin nhắn do chính bot gửi để tránh lặp vô tận
+        if (event.senderID === botID) return;
 
         const messageBody = event.body || "";
-        // Cập nhật regex bắt cả /video/ và /photo/ của TikTok, X, Reels, Instagram
+        
+        // Regex bắt link TikTok (video/photo/vt/short), X/Twitter, Reels, Instagram
         const urlRegex = /https?:\/\/(www\.)?(tiktok\.com\/(@[\w.-]+\/(video|photo)\/\d+|t\/\w+|vt\.tiktok\.com\/\w+)|x\.com\/\w+\/status\/\d+|twitter\.com\/\w+\/status\/\d+|facebook\.com\/reel\/\d+|instagram\.com\/(reel|p)\/[\w.-]+)[^\s]*/i;
         const match = messageBody.match(urlRegex);
 
         if (match) {
             const originalUrl = match[0];
-            console.log(`[+] Bắt link: ${originalUrl}`);
+            const isGroup = event.isGroup ? "Nhóm" : "Chat Cá Nhân";
+            console.log(`[+] Nhận link từ [${isGroup}] ${event.threadID}: ${originalUrl}`);
 
             try {
                 let directLink = "";
@@ -106,11 +116,12 @@ login({ appState }, {
 
                 const replyMessage = `🎬 Xem trực tiếp:\n👉 ${directLink}`;
 
+                // Gửi tin nhắn trả lời (event.threadID tự động là ID cá nhân nếu chat 1-1, hoặc ID nhóm nếu là group)
                 api.sendMessage(replyMessage, event.threadID, (sendErr) => {
                     if (sendErr) {
                         console.error("Lỗi gửi tin nhắn:", sendErr);
                     } else {
-                        console.log(`[✔] Đã gửi link cho thread: ${event.threadID}`);
+                        console.log(`[✔] Đã gửi link thành công tới: ${event.threadID}`);
                     }
                 }, event.messageID);
 
