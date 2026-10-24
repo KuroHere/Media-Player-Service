@@ -7,86 +7,70 @@ const COOKIE_PATH = path.join(__dirname, 'appstate.json');
 const PORT = process.env.PORT || 8000;
 const SERVER_URL = process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}`;
 
-// Hàm xác định hình thức đăng nhập: Credentials (Tự động) hoặc AppState (Cookie)
-function getAuthCredentials() {
-    // 1. Tự động đăng nhập bằng Email + Mật khẩu + Mã 2FA Key
-    if (process.env.FB_EMAIL && process.env.FB_PASSWORD) {
-        console.log(`[Auth] Đăng nhập tự động bằng Email/Mật khẩu cho: ${process.env.FB_EMAIL}`);
-        return {
-            email: process.env.FB_EMAIL.trim(),
-            password: process.env.FB_PASSWORD.trim(),
-            twofactor: (process.env.FB_2FA || "").trim()
-        };
-    }
-
-    // 2. Đăng nhập bằng Cookie từ biến môi trường APPSTATE_RAW
+function getAppState() {
     if (process.env.APPSTATE_RAW) {
         try {
             const data = JSON.parse(process.env.APPSTATE_RAW);
             const cookieList = data.cookies || data;
             if (Array.isArray(cookieList)) {
-                return {
-                    appState: cookieList.map(c => ({
-                        key: c.name || c.key,
-                        value: c.value,
-                        domain: (c.domain || "facebook.com").replace(/^\./, ""),
-                        path: c.path || "/",
-                        expires: c.expirationDate ? new Date(c.expirationDate * 1000).toISOString() : undefined,
-                        httpOnly: c.httpOnly !== undefined ? c.httpOnly : true,
-                        secure: c.secure !== undefined ? c.secure : true
-                    }))
-                };
+                return cookieList.map(c => ({
+                    key: c.name || c.key,
+                    value: c.value,
+                    domain: (c.domain || "facebook.com").replace(/^\./, ""),
+                    path: c.path || "/",
+                    expires: c.expirationDate ? new Date(c.expirationDate * 1000).toISOString() : undefined,
+                    httpOnly: c.httpOnly !== undefined ? c.httpOnly : true,
+                    secure: c.secure !== undefined ? c.secure : true
+                }));
             }
-            return { appState: data };
+            return data;
         } catch (e) {
             console.error("❌ Lỗi parse APPSTATE_RAW từ biến môi trường:", e.message);
         }
     }
 
-    // 3. Đọc từ file appstate.json local
     if (fs.existsSync(COOKIE_PATH)) {
         try {
             const raw = fs.readFileSync(COOKIE_PATH, 'utf8');
             const data = JSON.parse(raw);
             const cookieList = data.cookies || data;
             if (Array.isArray(cookieList)) {
-                return {
-                    appState: cookieList.map(c => ({
-                        key: c.name || c.key,
-                        value: c.value,
-                        domain: (c.domain || "facebook.com").replace(/^\./, ""),
-                        path: c.path || "/",
-                        expires: c.expirationDate ? new Date(c.expirationDate * 1000).toISOString() : undefined,
-                        httpOnly: c.httpOnly !== undefined ? c.httpOnly : true,
-                        secure: c.secure !== undefined ? c.secure : true
-                    }))
-                };
+                return cookieList.map(c => ({
+                    key: c.name || c.key,
+                    value: c.value,
+                    domain: (c.domain || "facebook.com").replace(/^\./, ""),
+                    path: c.path || "/",
+                    expires: c.expirationDate ? new Date(c.expirationDate * 1000).toISOString() : undefined,
+                    httpOnly: c.httpOnly !== undefined ? c.httpOnly : true,
+                    secure: c.secure !== undefined ? c.secure : true
+                }));
             }
-            return { appState: data };
+            return data;
         } catch (e) {
             console.error("❌ Lỗi parse file appstate.json:", e.message);
         }
     }
 
-    console.warn("⚠️ Không tìm thấy thông tin đăng nhập (Cần FB_EMAIL + FB_PASSWORD hoặc APPSTATE_RAW).");
+    console.warn("⚠️ Không tìm thấy AppState. Bot tạm dừng.");
     return null;
 }
 
 function startBot() {
-    const credentials = getAuthCredentials();
-    if (!credentials) return;
+    const appState = getAppState();
+    if (!appState) return;
 
-    console.log("⏳ Bot đang kết nối Messenger...");
+    console.log("⏳ Bot đang kết nối Messenger qua Cookie xác thực...");
 
-    login(credentials, {
-        userAgent: process.env.CUSTOM_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    login({ appState }, {
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         forceLogin: true,
         listenEvents: true,
         selfListen: false,
         autoMarkDelivery: false,
         autoMarkRead: false,
         updatePresence: true,
-        autoReconnect: true
+        autoReconnect: true,
+        autoLogin: false // Tắt kết nối tới server thứ ba bị lỗi HTTP 530
     }, (err, api) => {
         if (err) {
             console.error("❌ Đăng nhập bot gặp sự cố:", err.error || err);
@@ -94,7 +78,7 @@ function startBot() {
         }
 
         const botID = api.getCurrentUserID();
-        console.log(`✅ Bot Messenger đã online thành công (UID: ${botID})!`);
+        console.log(`✅ Bot Messenger đã online thành công trên Render (UID: ${botID})!`);
 
         api.listenMqtt(async (err, event) => {
             if (err) return;
