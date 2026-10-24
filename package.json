@@ -1,0 +1,13 @@
+{
+  "name": "media-player-service",
+  "version": "1.0.0",
+  "description": "Media Player and Messenger Bot Service",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "@dongdev/fca-unofficial": "^4.0.3",
+    "axios": "^1.7.2"
+  }
+}

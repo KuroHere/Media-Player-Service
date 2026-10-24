@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Node
+node_modules/
+npm-debug.log*
+
+# BẢO MẬT: Chặn tuyệt đối không lộ cookie bot
+appstate.json
