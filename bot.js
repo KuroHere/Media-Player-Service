@@ -51,81 +51,88 @@ function getAppState() {
         }
     }
 
-    console.warn("⚠️ Không tìm thấy AppState. Bot sẽ tạm tắt.");
+    console.warn("⚠️ Không tìm thấy AppState. Bot tạm dừng.");
     return null;
 }
 
-const appState = getAppState();
-if (!appState) {
-    process.exit(0);
+function startBot() {
+    const appState = getAppState();
+    if (!appState) return;
+
+    console.log("⏳ Bot đang kết nối Messenger...");
+
+    login({ appState }, {
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        forceLogin: true,
+        listenEvents: true,
+        selfListen: false,
+        autoMarkDelivery: false,
+        autoMarkRead: false,
+        updatePresence: true
+    }, (err, api) => {
+        if (err) {
+            console.error("❌ Đăng nhập bot gặp sự cố (login_blocked / cookie hết hạn):", err.error || err);
+            console.log("👉 Hướng dẫn: Đăng nhập nick Facebook trên trình duyệt và bấm 'Đây là tôi' (This was me), sau đó xuất lại Cookie mới.");
+            // Giữ tiến trình không crash để Web Player trên Render vẫn hoạt động
+            return;
+        }
+
+        const botID = api.getCurrentUserID();
+        console.log(`✅ Bot Messenger đã online (UID: ${botID})!`);
+
+        api.listenMqtt(async (err, event) => {
+            if (err) {
+                if (String(err).includes('login_blocked')) {
+                    console.error("⚠️ Bị login_blocked trong phiên MQTT. Hãy xác minh 'Đây là tôi' trên tài khoản Facebook.");
+                }
+                return;
+            }
+            
+            if (!event || (event.type !== 'message' && event.type !== 'message_reply')) return;
+            if (event.senderID === botID) return;
+
+            const messageBody = event.body || "";
+            if (!messageBody) return;
+
+            const urlRegex = /https?:\/\/(?:[a-zA-Z0-9-]+\.)*(?:tiktok\.com|x\.com|twitter\.com|t\.co|facebook\.com|instagram\.com)\/[^\s<>"']+/i;
+            const match = messageBody.match(urlRegex);
+
+            if (match) {
+                const originalUrl = match[0];
+                const chatType = event.isGroup ? "Group" : "Direct 1-1";
+                console.log(`[+] Nhận link từ [${chatType}] ${event.threadID}: ${originalUrl}`);
+
+                try {
+                    let directLink = "";
+                    try {
+                        const res = await axios.get(`${SERVER_URL}/api/shorten`, {
+                            params: { url: originalUrl },
+                            timeout: 6000
+                        });
+                        if (res.data && res.data.short_url) {
+                            directLink = res.data.short_url;
+                        }
+                    } catch (apiErr) {
+                        const external = process.env.RENDER_EXTERNAL_URL || "https://media-player-service.onrender.com";
+                        directLink = `${external}/?url=${encodeURIComponent(originalUrl)}`;
+                    }
+
+                    const replyMessage = `🎬 Xem trực tiếp:\n👉 ${directLink}`;
+
+                    api.sendMessage(replyMessage, event.threadID, (sendErr) => {
+                        if (sendErr) {
+                            console.error("Lỗi gửi tin nhắn:", sendErr);
+                        } else {
+                            console.log(`[✔] Đã gửi link thành công tới: ${event.threadID}`);
+                        }
+                    }, event.messageID);
+
+                } catch (e) {
+                    console.error("Lỗi xử lý bot:", e.message);
+                }
+            }
+        });
+    });
 }
 
-console.log("⏳ Bot đang kết nối Messenger...");
-
-login({ appState }, {
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    forceLogin: true,
-    listenEvents: true,
-    selfListen: false,
-    autoMarkDelivery: false,
-    autoMarkRead: false,
-    updatePresence: true
-}, (err, api) => {
-    if (err) {
-        console.error("❌ Đăng nhập bot thất bại:", err.error || err);
-        return;
-    }
-
-    const botID = api.getCurrentUserID();
-    console.log(`✅ Bot Messenger đã online (UID: ${botID})!`);
-
-    api.listenMqtt(async (err, event) => {
-        if (err) return;
-        
-        if (!event || (event.type !== 'message' && event.type !== 'message_reply')) return;
-
-        if (event.senderID === botID) return;
-
-        const messageBody = event.body || "";
-        if (!messageBody) return;
-
-        // Regex bao quát mọi dạng link: vt.tiktok.com, vm.tiktok.com, tiktok.com, x.com, twitter.com, t.co, reels, instagram
-        const urlRegex = /https?:\/\/(?:[a-zA-Z0-9-]+\.)*(?:tiktok\.com|x\.com|twitter\.com|t\.co|facebook\.com|instagram\.com)\/[^\s<>"']+/i;
-        const match = messageBody.match(urlRegex);
-
-        if (match) {
-            const originalUrl = match[0];
-            const chatType = event.isGroup ? "Group" : "Direct 1-1";
-            console.log(`[+] Nhận link từ [${chatType}] ${event.threadID}: ${originalUrl}`);
-
-            try {
-                let directLink = "";
-                try {
-                    const res = await axios.get(`${SERVER_URL}/api/shorten`, {
-                        params: { url: originalUrl },
-                        timeout: 6000
-                    });
-                    if (res.data && res.data.short_url) {
-                        directLink = res.data.short_url;
-                    }
-                } catch (apiErr) {
-                    const external = process.env.RENDER_EXTERNAL_URL || "https://media-player-service.onrender.com";
-                    directLink = `${external}/?url=${encodeURIComponent(originalUrl)}`;
-                }
-
-                const replyMessage = `🎬 Xem trực tiếp:\n👉 ${directLink}`;
-
-                api.sendMessage(replyMessage, event.threadID, (sendErr) => {
-                    if (sendErr) {
-                        console.error("Lỗi gửi tin nhắn:", sendErr);
-                    } else {
-                        console.log(`[✔] Đã gửi link thành công tới: ${event.threadID}`);
-                    }
-                }, event.messageID);
-
-            } catch (e) {
-                console.error("Lỗi xử lý bot:", e.message);
-            }
-        }
-    });
-});
+startBot();
