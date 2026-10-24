@@ -69,7 +69,6 @@ login({ appState }, {
     selfListen: false,
     autoMarkDelivery: false,
     autoMarkRead: false,
-    // Bật bắt sự kiện đồng bộ để hỗ trợ nhận tin nhắn trực tiếp
     updatePresence: true
 }, (err, api) => {
     if (err) {
@@ -83,17 +82,15 @@ login({ appState }, {
     api.listenMqtt(async (err, event) => {
         if (err) return;
         
-        // Bắt các loại event tin nhắn (kể cả message_reply hoặc unsend)
         if (!event || (event.type !== 'message' && event.type !== 'message_reply')) return;
 
-        // Bỏ qua tin nhắn do bot tự gửi
         if (event.senderID === botID) return;
 
         const messageBody = event.body || "";
         if (!messageBody) return;
 
-        // Regex bắt link media
-        const urlRegex = /https?:\/\/(www\.)?(tiktok\.com\/(@[\w.-]+\/(video|photo)\/\d+|t\/\w+|vt\.tiktok\.com\/\w+)|x\.com\/\w+\/status\/\d+|twitter\.com\/\w+\/status\/\d+|facebook\.com\/reel\/\d+|instagram\.com\/(reel|p)\/[\w.-]+)[^\s]*/i;
+        // Regex bao quát mọi dạng link: vt.tiktok.com, vm.tiktok.com, tiktok.com, x.com, twitter.com, t.co, reels, instagram
+        const urlRegex = /https?:\/\/(?:[a-zA-Z0-9-]+\.)*(?:tiktok\.com|x\.com|twitter\.com|t\.co|facebook\.com|instagram\.com)\/[^\s<>"']+/i;
         const match = messageBody.match(urlRegex);
 
         if (match) {
@@ -106,7 +103,7 @@ login({ appState }, {
                 try {
                     const res = await axios.get(`${SERVER_URL}/api/shorten`, {
                         params: { url: originalUrl },
-                        timeout: 5000
+                        timeout: 6000
                     });
                     if (res.data && res.data.short_url) {
                         directLink = res.data.short_url;

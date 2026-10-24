@@ -6,14 +6,13 @@ import subprocess
 import requests
 import secrets
 import string
+import re
 
 app = FastAPI()
 
-# Mount static và templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# In-memory storage cho link rút gọn (id -> original_url)
 short_links = {}
 
 def generate_short_code(length: int = 6) -> str:
@@ -23,19 +22,36 @@ def generate_short_code(length: int = 6) -> str:
         if code not in short_links:
             return code
 
+def resolve_redirect_url(url: str) -> str:
+    """Mở rộng link rút gọn (như vt.tiktok.com, t.co, vm.tiktok.com) thành link gốc"""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+        resp = requests.head(url, headers=headers, allow_redirects=True, timeout=8)
+        if resp.url:
+            return resp.url
+    except Exception as e:
+        print("Redirect resolve error:", e)
+    return url
+
 def extract_media(url: str):
     if not url:
         return None
     url = url.strip()
 
-    # 1. TikTok: Xử lý cả Video MP4 và Dạng lướt ảnh (Photo Slide)
+    # 1. Tự động giải mã link rút gọn (vt.tiktok.com, vm.tiktok.com, t.co, ...)
+    if "vt.tiktok.com" in url or "vm.tiktok.com" in url or "t.co" in url or "/t/" in url:
+        url = resolve_redirect_url(url)
+
+    # 2. Xử lý TikTok: Hỗ trợ cả Video MP4 và Album ảnh (Photo Slide)
     if "tiktok.com" in url:
         try:
             api_url = f"https://www.tikwm.com/api/?url={url}"
             resp = requests.get(api_url, timeout=10).json()
             if resp.get("code") == 0 and "data" in resp:
                 data = resp["data"]
-                # Nếu bài viết là dạng lướt ảnh
+                # Nếu là album ảnh
                 images = data.get("images")
                 if images and isinstance(images, list) and len(images) > 0:
                     return {
@@ -53,7 +69,49 @@ def extract_media(url: str):
         except Exception as e:
             print("TikWM error:", e)
 
-    # 2. X (Twitter), Facebook Reels, Instagram: Dùng yt-dlp
+    # 3. Xử lý X (Twitter): Dùng Syndication API nội bộ (cực nhanh, không bị chặn CORS, lấy MP4 trực tiếp)
+    if "x.com" in url or "twitter.com" in url:
+        match_id = re.search(r"/status/(\d+)", url)
+        if match_id:
+            tweet_id = match_id.group(1)
+            try:
+                # Query endpoint Syndication của chính Twitter kèm token
+                syn_url = f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=5"
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                }
+                syn_res = requests.get(syn_url, headers=headers, timeout=8).json()
+                
+                # Trích xuất video nếu có
+                video_obj = syn_res.get("video", {})
+                variants = video_obj.get("variants", [])
+                
+                mp4_list = []
+                for item in variants:
+                    if item.get("type") == "video/mp4" and item.get("src"):
+                        mp4_list.append(item["src"])
+                
+                if mp4_list:
+                    # Lấy video có chất lượng cao nhất (thường nằm ở cuối danh sách)
+                    return {
+                        "type": "video",
+                        "video_url": mp4_list[-1]
+                    }
+
+                # Nếu là bài đăng hình ảnh trên Twitter
+                photos = syn_res.get("photos", [])
+                if photos:
+                    img_urls = [p.get("url") for p in photos if p.get("url")]
+                    if img_urls:
+                        return {
+                            "type": "images",
+                            "images": img_urls,
+                            "music_url": None
+                        }
+            except Exception as tw_err:
+                print("Twitter syndication error:", tw_err)
+
+    # 4. Fallback: Dùng yt-dlp cho Facebook Reels, Instagram hoặc các link khác
     try:
         cmd = [
             "yt-dlp",
@@ -73,7 +131,6 @@ def extract_media(url: str):
 
     return None
 
-# API tạo link rút gọn (JSON response)
 @app.post("/api/shorten")
 @app.get("/api/shorten")
 def api_shorten(url: str, request: Request):
@@ -95,7 +152,6 @@ def api_shorten(url: str, request: Request):
         "original_url": clean_target
     }
 
-# Endpoint phát media qua link rút gọn (/v/aB12xY)
 @app.get("/v/{code}", response_class=HTMLResponse)
 def play_short(code: str, request: Request):
     target_url = short_links.get(code)
@@ -125,7 +181,6 @@ def play_short(code: str, request: Request):
 
     return templates.TemplateResponse(request=request, name="player.html", context=ctx)
 
-# Endpoint trang chủ hoặc direct query (/?url=...)
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, url: str = ""):
     if not url:
