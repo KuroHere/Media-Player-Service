@@ -41,6 +41,11 @@ def extract_media(url: str):
         return None
     url = url.strip()
 
+    # Bỏ qua các URL không hợp lệ hoặc quét port để tránh timeout
+    valid_patterns = ("tiktok.com", "douyin.com", "x.com", "twitter.com", "t.co", "facebook.com", "instagram.com")
+    if not any(domain in url.lower() for domain in valid_patterns):
+        return None
+
     # 1. Tự động giải mã link rút gọn (vt.tiktok.com, vm.tiktok.com, t.co, ...)
     if "vt.tiktok.com" in url or "vm.tiktok.com" in url or "t.co" in url or "/t/" in url:
         url = resolve_redirect_url(url)
@@ -49,7 +54,10 @@ def extract_media(url: str):
     if "tiktok.com" in url:
         try:
             api_url = f"https://www.tikwm.com/api/?url={url}"
-            resp = requests.get(api_url, timeout=10).json()
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            }
+            resp = requests.get(api_url, headers=headers, timeout=10).json()
             if resp.get("code") == 0 and "data" in resp:
                 data = resp["data"]
                 # Nếu là album ảnh
@@ -91,9 +99,15 @@ def extract_media(url: str):
                         mp4_list.append(item["src"])
                 
                 if mp4_list:
+                    # Ưu tiên độ phân giải 720p/1080p tương thích tốt trên mọi thiết bị di động
+                    chosen = mp4_list[-1]
+                    for src in reversed(mp4_list):
+                        if "720" in src or "1080" in src:
+                            chosen = src
+                            break
                     return {
                         "type": "video",
-                        "video_url": mp4_list[-1]
+                        "video_url": chosen
                     }
 
                 photos = syn_res.get("photos", [])

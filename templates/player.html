@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
     <title>{{ "Xem Ảnh TikTok" if media_type == "images" else "Đang phát Video" }}</title>
     <!-- Cache buster query string v=3 -->
     <link rel="stylesheet" href="/static/css/player.css?v=3">
@@ -27,8 +28,8 @@
 
         {% if media_type == "video" %}
         <!-- Trình phát Video MP4 -->
-        <video id="mainVideo" controls autoplay playsinline loop muted>
-            <source src="{{ video_url }}" type="video/mp4">
+        <video id="mainVideo" controls autoplay playsinline loop muted referrerpolicy="no-referrer">
+            <source src="{{ video_url }}" type="video/mp4" referrerpolicy="no-referrer">
             Trình duyệt của bạn không hỗ trợ thẻ video HTML5.
         </video>
         <script>
