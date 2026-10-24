@@ -59,34 +59,30 @@ function startBot() {
     const appState = getAppState();
     if (!appState) return;
 
-    console.log("⏳ Bot đang kết nối Messenger...");
+    console.log("⏳ Bot đang kết nối Messenger trên Render...");
 
+    // Tùy chỉnh login chuyên sâu để vượt qua lỗi 1357001 trên datacenter Render
     login({ appState }, {
-        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        userAgent: process.env.CUSTOM_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         forceLogin: true,
         listenEvents: true,
         selfListen: false,
         autoMarkDelivery: false,
         autoMarkRead: false,
-        updatePresence: true
+        updatePresence: true,
+        autoReconnect: true
     }, (err, api) => {
         if (err) {
-            console.error("❌ Đăng nhập bot gặp sự cố (login_blocked / cookie hết hạn):", err.error || err);
-            console.log("👉 Hướng dẫn: Đăng nhập nick Facebook trên trình duyệt và bấm 'Đây là tôi' (This was me), sau đó xuất lại Cookie mới.");
-            // Giữ tiến trình không crash để Web Player trên Render vẫn hoạt động
+            console.error("❌ Đăng nhập bot gặp sự cố:", err.error || err);
+            console.log("💡 Mẹo: Hãy mở trang https://www.messenger.com, xuất cookie từ đó rồi cập nhật lại biến APPSTATE_RAW trên Render.");
             return;
         }
 
         const botID = api.getCurrentUserID();
-        console.log(`✅ Bot Messenger đã online (UID: ${botID})!`);
+        console.log(`✅ Bot Messenger đã online thành công trên Render (UID: ${botID})!`);
 
         api.listenMqtt(async (err, event) => {
-            if (err) {
-                if (String(err).includes('login_blocked')) {
-                    console.error("⚠️ Bị login_blocked trong phiên MQTT. Hãy xác minh 'Đây là tôi' trên tài khoản Facebook.");
-                }
-                return;
-            }
+            if (err) return;
             
             if (!event || (event.type !== 'message' && event.type !== 'message_reply')) return;
             if (event.senderID === botID) return;
