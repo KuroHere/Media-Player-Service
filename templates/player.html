@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{{ "Xem Ảnh TikTok" if media_type == "images" else "Đang phát Video" }}</title>
-    <link rel="stylesheet" href="/static/css/player.css">
+    <!-- Cache buster query string v=2 để không bị cache css cũ -->
+    <link rel="stylesheet" href="/static/css/player.css?v=2">
 </head>
 <body>
     <div class="player-container">
@@ -45,9 +46,9 @@
         {% elif media_type == "images" %}
         <!-- Trình lướt ảnh TikTok (Slideshow + Nhạc nền) -->
         <div class="gallery-container">
-            <button class="nav-btn prev-btn" onclick="prevSlide()">&#10094;</button>
+            <button type="button" class="nav-btn prev-btn" id="prevBtn">&#10094;</button>
             <img id="activeSlide" class="slide-img" src="{{ images[0] }}" alt="TikTok Photo">
-            <button class="nav-btn next-btn" onclick="nextSlide()">&#10095;</button>
+            <button type="button" class="nav-btn next-btn" id="nextBtn">&#10095;</button>
             <div id="slideIndicator" class="indicator">1 / {{ images|length }}</div>
         </div>
 
@@ -65,15 +66,22 @@
             const indElem = document.getElementById('slideIndicator');
             const dlBtn = document.getElementById('downloadImgBtn');
             const bgMusic = document.getElementById('bgMusic');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
 
             function updateSlide() {
-                imgElem.style.opacity = '0.3';
-                setTimeout(() => {
-                    imgElem.src = images[currentIndex];
+                imgElem.style.opacity = '0.2';
+                const nextSrc = images[currentIndex];
+                
+                // Preload ảnh tiếp theo để chuyển mượt không bị nháy
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    imgElem.src = nextSrc;
                     indElem.textContent = `${currentIndex + 1} / ${images.length}`;
-                    if (dlBtn) dlBtn.href = images[currentIndex];
+                    if (dlBtn) dlBtn.href = nextSrc;
                     imgElem.style.opacity = '1';
-                }, 100);
+                };
+                tempImg.src = nextSrc;
             }
 
             function nextSlide() {
@@ -86,30 +94,57 @@
                 updateSlide();
             }
 
-            // Hỗ trợ phím mũi tên trái / phải
+            // Gắn sự kiện click nút bấm
+            nextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                nextSlide();
+            });
+
+            prevBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                prevSlide();
+            });
+
+            // Bấm vào nửa phải màn hình -> Next, nửa trái -> Prev
+            imgElem.addEventListener('click', (e) => {
+                const rect = imgElem.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                if (clickX > rect.width / 2) {
+                    nextSlide();
+                } else {
+                    prevSlide();
+                }
+            });
+
+            // Hỗ trợ phím mũi tên bàn phím
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowRight' || e.key === 'Space') nextSlide();
                 if (e.key === 'ArrowLeft') prevSlide();
             });
 
-            // Vuốt cảm ứng trên điện thoại (Swipe Touch)
+            // Vuốt cảm ứng điện thoại (Swipe Touch)
             let touchStartX = 0;
-            let touchEndX = 0;
+            let touchStartY = 0;
 
             document.addEventListener('touchstart', (e) => {
-                touchStartX = e.changedTouches[0].screenX;
+                touchStartX = e.changedTouches[0].clientX;
+                touchStartY = e.changedTouches[0].clientY;
             }, { passive: true });
 
             document.addEventListener('touchend', (e) => {
-                touchEndX = e.changedTouches[0].screenX;
-                const diff = touchStartX - touchEndX;
-                if (Math.abs(diff) > 40) {
-                    if (diff > 0) nextSlide();
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                const diffX = touchStartX - touchEndX;
+                const diffY = touchStartY - touchEndY;
+
+                // Nếu là vuốt ngang (tránh nhầm với cuộn dọc)
+                if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+                    if (diffX > 0) nextSlide();
                     else prevSlide();
                 }
             }, { passive: true });
 
-            // Autoplay audio policy handling
+            // Bật nhạc nền
             if (bgMusic) {
                 bgMusic.play().catch(() => {
                     document.body.addEventListener('click', () => {
