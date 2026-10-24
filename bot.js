@@ -59,9 +59,8 @@ function startBot() {
     const appState = getAppState();
     if (!appState) return;
 
-    console.log("⏳ Bot đang kết nối Messenger qua Cookie xác thực...");
-
-    login({ appState }, {
+    // Cấu hình Proxy nếu người dùng cung cấp biến PROXY_URL
+    const loginOptions = {
         userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         forceLogin: true,
         listenEvents: true,
@@ -70,8 +69,17 @@ function startBot() {
         autoMarkRead: false,
         updatePresence: true,
         autoReconnect: true,
-        autoLogin: false // Tắt kết nối tới server thứ ba bị lỗi HTTP 530
-    }, (err, api) => {
+        autoLogin: false
+    };
+
+    if (process.env.PROXY_URL) {
+        console.log(`🌐 Đang sử dụng Proxy: ${process.env.PROXY_URL.split('@').pop()}`);
+        loginOptions.proxy = process.env.PROXY_URL.trim();
+    }
+
+    console.log("⏳ Bot đang kết nối Messenger qua Cookie xác thực...");
+
+    login({ appState }, loginOptions, (err, api) => {
         if (err) {
             console.error("❌ Đăng nhập bot gặp sự cố:", err.error || err);
             return;
