@@ -3,42 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Đang phát Video</title>
+    <title>{{ "Xem Ảnh TikTok" if media_type == "images" else "Đang phát Video" }}</title>
     <link rel="stylesheet" href="/static/css/player.css">
 </head>
 <body>
     <div class="player-container">
-        <!-- Action Bar nhỏ gọn góc trên -->
+        <!-- Action Bar góc trên -->
         <div class="action-bar">
+            {% if media_type == "video" %}
             <a href="{{ video_url }}" download="video.mp4" class="btn-action" title="Tải video">
                 ⬇ Tải MP4
             </a>
+            {% elif media_type == "images" %}
+            <a id="downloadImgBtn" href="{{ images[0] }}" target="_blank" download class="btn-action" title="Tải ảnh">
+                ⬇ Tải Ảnh Này
+            </a>
+            {% endif %}
             <a href="{{ original_url }}" target="_blank" rel="noopener noreferrer" class="btn-action" title="Xem bài gốc">
                 🔗 Nguồn
             </a>
         </div>
 
-        <!-- Video Player tự động phát, căn giữa 100% -->
+        {% if media_type == "video" %}
+        <!-- Trình phát Video MP4 -->
         <video id="mainVideo" controls autoplay playsinline loop muted>
             <source src="{{ video_url }}" type="video/mp4">
-            Trình duyệt của bạn không hỗ trợ phát thẻ video HTML5.
+            Trình duyệt của bạn không hỗ trợ thẻ video HTML5.
         </video>
-    </div>
-
-    <script>
-        // Tự động phát khi tải trang (unmute nếu trình duyệt cho phép)
-        const video = document.getElementById('mainVideo');
-        video.play().then(() => {
-            // Cố gắng bật tiếng sau khi đã auto-play
-            video.muted = false;
-        }).catch(() => {
-            // Nếu trình duyệt (đặc biệt là Messenger / Safari) chặn autoplay có tiếng,
-            // giữ muted và bấm chạm vào màn hình sẽ bật tiếng
-            document.body.addEventListener('click', () => {
+        <script>
+            const video = document.getElementById('mainVideo');
+            video.play().then(() => {
                 video.muted = false;
-                video.play();
-            }, { once: true });
-        });
-    </script>
+            }).catch(() => {
+                document.body.addEventListener('click', () => {
+                    video.muted = false;
+                    video.play();
+                }, { once: true });
+            });
+        </script>
+
+        {% elif media_type == "images" %}
+        <!-- Trình lướt ảnh TikTok (Slideshow + Nhạc nền) -->
+        <div class="gallery-container">
+            <button class="nav-btn prev-btn" onclick="prevSlide()">&#10094;</button>
+            <img id="activeSlide" class="slide-img" src="{{ images[0] }}" alt="TikTok Photo">
+            <button class="nav-btn next-btn" onclick="nextSlide()">&#10095;</button>
+            <div id="slideIndicator" class="indicator">1 / {{ images|length }}</div>
+        </div>
+
+        {% if music_url %}
+        <!-- Nhạc nền kèm theo slideshow TikTok -->
+        <audio id="bgMusic" autoplay loop>
+            <source src="{{ music_url }}" type="audio/mp4">
+        </audio>
+        {% endif %}
+
+        <script>
+            const images = {{ images | tojson }};
+            let currentIndex = 0;
+            const imgElem = document.getElementById('activeSlide');
+            const indElem = document.getElementById('slideIndicator');
+            const dlBtn = document.getElementById('downloadImgBtn');
+            const bgMusic = document.getElementById('bgMusic');
+
+            function updateSlide() {
+                imgElem.style.opacity = '0.3';
+                setTimeout(() => {
+                    imgElem.src = images[currentIndex];
+                    indElem.textContent = `${currentIndex + 1} / ${images.length}`;
+                    if (dlBtn) dlBtn.href = images[currentIndex];
+                    imgElem.style.opacity = '1';
+                }, 100);
+            }
+
+            function nextSlide() {
+                currentIndex = (currentIndex + 1) % images.length;
+                updateSlide();
+            }
+
+            function prevSlide() {
+                currentIndex = (currentIndex - 1 + images.length) % images.length;
+                updateSlide();
+            }
+
+            // Hỗ trợ phím mũi tên trái / phải
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight' || e.key === 'Space') nextSlide();
+                if (e.key === 'ArrowLeft') prevSlide();
+            });
+
+            // Vuốt cảm ứng trên điện thoại (Swipe Touch)
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            document.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+
+            document.addEventListener('touchend', (e) => {
+                touchEndX = e.changedTouches[0].screenX;
+                const diff = touchStartX - touchEndX;
+                if (Math.abs(diff) > 40) {
+                    if (diff > 0) nextSlide();
+                    else prevSlide();
+                }
+            }, { passive: true });
+
+            // Autoplay audio policy handling
+            if (bgMusic) {
+                bgMusic.play().catch(() => {
+                    document.body.addEventListener('click', () => {
+                        bgMusic.play();
+                    }, { once: true });
+                });
+            }
+        </script>
+        {% endif %}
+    </div>
 </body>
 </html>

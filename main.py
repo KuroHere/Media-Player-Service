@@ -14,7 +14,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # In-memory storage cho link rút gọn (id -> original_url)
-# Ví dụ: short_links["aB12xY"] = "https://www.tiktok.com/@user/video/12345"
 short_links = {}
 
 def generate_short_code(length: int = 6) -> str:
@@ -24,20 +23,35 @@ def generate_short_code(length: int = 6) -> str:
         if code not in short_links:
             return code
 
-def get_clean_video_url(url: str):
+def extract_media(url: str):
     if not url:
         return None
     url = url.strip()
 
-    # 1. TikTok: Dùng TikWM API lấy link direct sạch, không logo, bypass chặn 0:00
+    # 1. TikTok: Xử lý cả Video MP4 và Dạng lướt ảnh (Photo Slide)
     if "tiktok.com" in url:
         try:
             api_url = f"https://www.tikwm.com/api/?url={url}"
             resp = requests.get(api_url, timeout=10).json()
             if resp.get("code") == 0 and "data" in resp:
-                return resp["data"].get("play") or resp["data"].get("wmplay")
-        except Exception:
-            pass
+                data = resp["data"]
+                # Nếu bài viết là dạng lướt ảnh
+                images = data.get("images")
+                if images and isinstance(images, list) and len(images) > 0:
+                    return {
+                        "type": "images",
+                        "images": images,
+                        "music_url": data.get("music")
+                    }
+                # Nếu là video thông thường
+                video_url = data.get("play") or data.get("wmplay")
+                if video_url:
+                    return {
+                        "type": "video",
+                        "video_url": video_url
+                    }
+        except Exception as e:
+            print("TikWM error:", e)
 
     # 2. X (Twitter), Facebook Reels, Instagram: Dùng yt-dlp
     try:
@@ -50,14 +64,16 @@ def get_clean_video_url(url: str):
         ]
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if res.returncode == 0 and res.stdout.strip():
-            return res.stdout.strip().split("\n")[0]
-    except Exception:
-        pass
+            return {
+                "type": "video",
+                "video_url": res.stdout.strip().split("\n")[0]
+            }
+    except Exception as e:
+        print("yt-dlp error:", e)
 
     return None
 
-# API tạo link rút gọn dành riêng cho Bot (JSON response)
-# Bot gọi: POST /api/shorten?url=...
+# API tạo link rút gọn (JSON response)
 @app.post("/api/shorten")
 @app.get("/api/shorten")
 def api_shorten(url: str, request: Request):
@@ -65,7 +81,6 @@ def api_shorten(url: str, request: Request):
         return {"error": "Thiếu tham số url"}
     clean_target = url.strip()
     
-    # Kiểm tra xem link này đã có mã rút gọn chưa để tái sử dụng
     for code, existing_url in short_links.items():
         if existing_url == clean_target:
             base_url = str(request.base_url).rstrip("/")
@@ -80,7 +95,7 @@ def api_shorten(url: str, request: Request):
         "original_url": clean_target
     }
 
-# Endpoint phát video khi click link rút gọn (Ví dụ: /v/aB12xY)
+# Endpoint phát media qua link rút gọn (/v/aB12xY)
 @app.get("/v/{code}", response_class=HTMLResponse)
 def play_short(code: str, request: Request):
     target_url = short_links.get(code)
@@ -90,17 +105,25 @@ def play_short(code: str, request: Request):
             "message": "Liên kết rút gọn không tồn tại hoặc đã hết hạn."
         })
 
-    video_url = get_clean_video_url(target_url)
-    if not video_url:
+    media_data = extract_media(target_url)
+    if not media_data:
         return templates.TemplateResponse(request=request, name="error.html", context={
             "original_url": target_url,
-            "message": "Không thể trích xuất video (link riêng tư hoặc bị xóa)."
+            "message": "Không thể trích xuất nội dung (link riêng tư hoặc bị xóa)."
         })
 
-    return templates.TemplateResponse(request=request, name="player.html", context={
-        "video_url": video_url,
-        "original_url": target_url
-    })
+    ctx = {
+        "request": request,
+        "original_url": target_url,
+        "media_type": media_data.get("type")
+    }
+    if media_data.get("type") == "images":
+        ctx["images"] = media_data.get("images")
+        ctx["music_url"] = media_data.get("music_url")
+    else:
+        ctx["video_url"] = media_data.get("video_url")
+
+    return templates.TemplateResponse(request=request, name="player.html", context=ctx)
 
 # Endpoint trang chủ hoặc direct query (/?url=...)
 @app.get("/", response_class=HTMLResponse)
@@ -108,14 +131,22 @@ def index(request: Request, url: str = ""):
     if not url:
         return templates.TemplateResponse(request=request, name="home.html")
 
-    video_url = get_clean_video_url(url)
-    if not video_url:
+    media_data = extract_media(url)
+    if not media_data:
         return templates.TemplateResponse(request=request, name="error.html", context={
             "original_url": url,
-            "message": "Không thể trích xuất video (link riêng tư hoặc bị xóa)."
+            "message": "Không thể trích xuất nội dung (link riêng tư hoặc bị xóa)."
         })
 
-    return templates.TemplateResponse(request=request, name="player.html", context={
-        "video_url": video_url,
-        "original_url": url
-    })
+    ctx = {
+        "request": request,
+        "original_url": url,
+        "media_type": media_data.get("type")
+    }
+    if media_data.get("type") == "images":
+        ctx["images"] = media_data.get("images")
+        ctx["music_url"] = media_data.get("music_url")
+    else:
+        ctx["video_url"] = media_data.get("video_url")
+
+    return templates.TemplateResponse(request=request, name="player.html", context=ctx)

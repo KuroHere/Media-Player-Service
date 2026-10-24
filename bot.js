@@ -4,12 +4,10 @@ const axios = require('axios');
 const login = require('@dongdev/fca-unofficial');
 
 const COOKIE_PATH = path.join(__dirname, 'appstate.json');
-// Gọi trực tiếp cổng nội bộ hoặc domain public
 const PORT = process.env.PORT || 8000;
 const SERVER_URL = process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}`;
 
 function getAppState() {
-    // 1. Ưu tiên đọc từ Environment Variable trên Render (Bảo mật)
     if (process.env.APPSTATE_RAW) {
         try {
             const data = JSON.parse(process.env.APPSTATE_RAW);
@@ -31,7 +29,6 @@ function getAppState() {
         }
     }
 
-    // 2. Đọc từ file appstate.json ở local
     if (fs.existsSync(COOKIE_PATH)) {
         try {
             const raw = fs.readFileSync(COOKIE_PATH, 'utf8');
@@ -54,13 +51,12 @@ function getAppState() {
         }
     }
 
-    console.warn("⚠️ Không tìm thấy AppState. Bot sẽ tạm tắt (Web Player vẫn hoạt động bình thường).");
+    console.warn("⚠️ Không tìm thấy AppState. Bot sẽ tạm tắt.");
     return null;
 }
 
 const appState = getAppState();
 if (!appState) {
-    // Nếu chưa cấu hình cookie, bot kết thúc nhẹ nhàng để không crash web player
     process.exit(0);
 }
 
@@ -85,7 +81,8 @@ login({ appState }, {
         if (err || event.type !== 'message') return;
 
         const messageBody = event.body || "";
-        const urlRegex = /https?:\/\/(www\.)?(tiktok\.com|x\.com|twitter\.com|facebook\.com\/reel|instagram\.com\/reel)[^\s]+/i;
+        // Cập nhật regex bắt cả /video/ và /photo/ của TikTok, X, Reels, Instagram
+        const urlRegex = /https?:\/\/(www\.)?(tiktok\.com\/(@[\w.-]+\/(video|photo)\/\d+|t\/\w+|vt\.tiktok\.com\/\w+)|x\.com\/\w+\/status\/\d+|twitter\.com\/\w+\/status\/\d+|facebook\.com\/reel\/\d+|instagram\.com\/(reel|p)\/[\w.-]+)[^\s]*/i;
         const match = messageBody.match(urlRegex);
 
         if (match) {
@@ -107,7 +104,7 @@ login({ appState }, {
                     directLink = `${external}/?url=${encodeURIComponent(originalUrl)}`;
                 }
 
-                const replyMessage = `🎬 Xem trực tiếp (No Watermark):\n👉 ${directLink}`;
+                const replyMessage = `🎬 Xem trực tiếp:\n👉 ${directLink}`;
 
                 api.sendMessage(replyMessage, event.threadID, (sendErr) => {
                     if (sendErr) {
