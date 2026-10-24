@@ -1,0 +1,23 @@
+name: Keep Alive Ping
+
+on:
+  schedule:
+    # Chạy mỗi 10 phút một lần (chuẩn cron UTC)
+    - cron: "*/10 * * * *"
+  workflow_dispatch: # Cho phép bấm chạy thủ công từ tab Actions
+
+jobs:
+  ping:
+    name: Ping Service
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Web Service
+        run: |
+          URL="https://media-player-service.onrender.com"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+          echo "Pinged $URL with response code: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "Service is healthy and active."
+          else
+            echo "Warning: Received unexpected status code $STATUS"
+          fi
